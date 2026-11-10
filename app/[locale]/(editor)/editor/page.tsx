@@ -57,8 +57,6 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { TimelineSkeleton } from "@/app/components/ui/Skeleton";
 import { AudioTrimModal } from "@/app/components/ui/editor/AudioTrimModal";
 import { useMockup3dContext } from "@/app/contexts/Mockup3dContext";
-import { useAuth } from "@/app/contexts/useAuth";
-import { readPendingExport, clearPendingExport } from "@/lib/pending-export";
 import Image from "next/image";
 import Link from "next/link";
 import { TooltipAction } from "@/components/ui/tooltip-action";
@@ -1176,8 +1174,6 @@ export default function Editor() {
         prevImageExportStatusRef.current = imageExportProgress.status;
     }, [imageExportProgress.status]);
 
-    const { user: authUser, loading: authLoading } = useAuth();
-
     const handleExport = useCallback((quality: ExportQuality, fps?: number, bitrate?: number) => {
         isExportingRef.current = true;
         for (const audioEl of audioElementsRef.current.values()) {
@@ -1222,47 +1218,6 @@ export default function Editor() {
             isExportingRef.current = false;
         });
     }, [videoBlob, selectedWallpaper, trimRange, muteOriginalAudio, videoHasAudioTrack, audioTracks, uploadedAudios, masterVolume, videoClips, globalSpeed, exportVideo, setIsPlaying]);
-
-    const handleExportRef = useRef(handleExport);
-    useEffect(() => {
-        handleExportRef.current = handleExport;
-    }, [handleExport]);
-
-    useEffect(() => {
-        if (!isVideoMode || authLoading || !authUser) return;
-
-        let timer: ReturnType<typeof setInterval> | null = null;
-        let attempts = 0;
-
-        const tick = () => {
-            const pendingQuality = readPendingExport();
-            if (!pendingQuality) {
-                if (timer) clearInterval(timer);
-                return;
-            }
-            if (isRestoringProjectRef.current) return;
-
-            const hasContent = videoClipsRef.current.length > 0 || !!videoBlob;
-            if (!hasContent) {
-                attempts++;
-                if (attempts > 120) {
-                    clearPendingExport();
-                    if (timer) clearInterval(timer);
-                }
-                return;
-            }
-
-            clearPendingExport();
-            if (timer) clearInterval(timer);
-            handleExportRef.current(pendingQuality);
-        };
-
-        tick();
-        timer = setInterval(tick, 250);
-        return () => {
-            if (timer) clearInterval(timer);
-        };
-    }, [isVideoMode, authLoading, authUser]);
 
     const showNewVideosBadge = useCallback((count: number) => {
         if (newVideosBadgeTimeoutRef.current) {
